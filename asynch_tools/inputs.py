@@ -24,6 +24,9 @@ import pandas as pd
 #asynch
 class basinTopo:
 
+    ########################################################################################################
+    #Functions read structures and to initialize basin object 
+    
     def __read_basin_from_msg__(self):
         '''Read hillsIds and hillsConect from a msg file'''
         #Read the data frame in pandas format and obtains the FullStruct
@@ -59,13 +62,14 @@ class basinTopo:
         L = f.readlines()
         f.close()
         #Obtain parameters
-        Area = []; Slope=[]; Long = []
+        ParamsDict = {'p1':[],'p2':[],'p3':[]}
         for l in L[3::3]:
             Param = [float(i) for i in l.split()]
-            Area.append(Param[0])
-            Slope.append(Param[1])
-            Long.append(Param[2])
-        return 'vacio'
+            for i in range(3):
+                ParamsDict['p'+str(i+1)].append(Param[i])
+        for i in range(3):
+            ParamsDict['p'+str(i+1)] = np.array(ParamsDict['p'+str(i+1)])
+        self.params = ParamsDict
 
     def __read_basin_lookup_file__(self):
         return 'vacio'
@@ -91,7 +95,7 @@ class basinTopo:
             name, ext = os.path.splitext(path_prm)
             if ext == '.prm':
                 self.path_prm = path_prm
-                __read_basin_prm_file__()
+                self.__read_basin_prm_file__()
             else:
                 print('Waning: not a valid .prm file extension')
         #Read lookup file 
@@ -99,15 +103,18 @@ class basinTopo:
             name, ext = os.path.splitext(path_lookup)
             if ext == '.lookup':
                 self.path_lookup = path_lookup
-                __read_basin_lookup_file__()
+                self.__read_basin_lookup_file__()
             else:
                 print('Warning: not a valid .lookup file')
 
-    def __RainUniformRainfall__(N, u_min, u_max):
+    ########################################################################################################
+    #Functions to obtain random rainfal fields 
+                
+    def __RainUniformRainfall__(self, N, u_min, u_max):
         '''Generate uniform random rainfall'''
         return np.random.uniform(u_min, u_max, N)
 
-    def __RainHistogramRainfall__(Histogram, Ngen = 50):
+    def __RainHistogramRainfall__(self, Histogram, Ngen = 50):
         '''Generate rainfall copying a base histogram corresponding
         to mean intensity values during a storm
         Parameters:
@@ -125,7 +132,7 @@ class basinTopo:
         #Returns rainfall estimated
         return hist * Histogram.sum()
 
-    def __RainWriteVariableHill__(f,rain, timeStep, Hill, maskHills):
+    def __RainWriteVariableHill__(self, f,rain, timeStep, Hill, maskHills):
         '''Updates variable hill rainfall file'''
         f.write('%d\n' % Hill)
         f.write('%d\n' % rain.size)
@@ -184,37 +191,42 @@ class basinTopo:
 
         #Mascara de los hills 
         if MaskedHills is None:
-            MaskedHills = HillsIDs < HillsIDs.max()+1
+            MaskedHills = self.hillsIds < self.hillsIds.max()+1
 
         #Llama funciones para generar la lluvia
         if VariableHills:
             #Opens file and writes the total number of hills in it.
             f = open(path, 'w')
-            f.write('%d \n\n\n' % HillsIDs.size)
+            f.write('%d \n\n\n' % self.hillsIds.size)
             #Writes rainfall for each hill
-            for Hill, Mask in zip(HillsIDs, MaskedHills):
+            for Hill, Mask in zip(self.hillsIds, MaskedHills):
                 #Writes if hill is not masked
                 if Mask:
                     #Selects rainfall function 
                     if rain == 'urandom':
                         # Uniform rainfall function
-                        rainValues = __RainUniformRainfall__(Nrain, urand_min, urand_max)
+                        rainValues = self.__RainUniformRainfall__(Nrain, urand_min, urand_max)
                         #Writes rainfall for hill
-                        __RainWriteVariableHill__(f,rainValues, RainTimeStep, Hill, MaskedHills)
+                        self.__RainWriteVariableHill__(f,rainValues, RainTimeStep, Hill, MaskedHills)
                     elif rain == 'hrandom':
                         # Histogram based rainfall 
-                        rainValues = __RainHistogramRainfall__(BaseHietogram, Ngen)
+                        rainValues = self.__RainHistogramRainfall__(BaseHietogram, Ngen)
                         #Writes rainfall for hill
-                        __RainWriteVariableHill__(f,rainValues, RainTimeStep, Hill, MaskedHills)
+                        self.__RainWriteVariableHill__(f,rainValues, RainTimeStep, Hill, MaskedHills)
             #Close rainfall file 
             f.close()
         elif VariableHills is False:
+            #Selects rainfall depending on the generator function
+            if rain == 'urandom':
+                #Uniform random generator
+                rainValues = self.__RainUniformRainfall__(Nrain, urand_min, urand_max)
+            if rain == 'hrandom':
+                #Hietogram random generator
+                rainValues = self.__RainHistogramRainfall__(BaseHietogram, Ngen)
+                Nrain = rainValues.size
             #Opens file and writes the total number of time steps.
             f = open(path, 'w')
             f.write('%d \n\n' % Nrain)
-            #Selects rainfall depending on the generator function
-            if rain == 'urandom':
-                rainValues = __RainUniformRainfall__(Nrain, urand_min, urand_max)
             #Writes rainfall for each time step 
             for c,R in enumerate(rainValues):
                 Step = (c+1)*RainTimeStep
@@ -222,6 +234,143 @@ class basinTopo:
             #Close rainfall file 
             f.close()
 
+    ########################################################################################################
+    #Functions to obtain random initial conditions 
+            
+    def __InitialStatesUrandom__(self, rmin, rmax):
+        '''Generate a initial state uniform random vector rmax and rmin
+        correspond to the min and max values of the random generator'''
+        #Generator 
+        States = []
+        for rmi,rma in zip(rmin, rmax):
+            States.append(np.random.uniform(rmi,rma))
+        return States
+
+    def __InitialStatesNrandom__(self, mean, desv):
+        '''Generate a initial state normal random vector mean and dev
+        correspond to the parameters of the normal distribution,
+        the function is truncated in order to obtain possitive values only'''
+        #Generator 
+        States = []
+        for m,s in zip(mean, desv):
+            Val = -9
+            while Val<0:
+                Val = np.random.normal(m,s)
+            States.append(Val)
+        return States
+
+    def __InitialStatesWrite__(self, file, HillsID, states):
+        '''Function to write ini files for asynch, requires 
+        a file handler object, the hillID, and the vector with the states'''
+        # Writes number of the link
+        file.write('%d \n' % HillsID)
+        for state in states:
+            file.write('%.5f ' % state)
+        file.write('\n')
+
+    def Initial2IniFile(self, path, modelType = 252, initial = 'urandom', InitialTime = 0,
+        VariableHills = False, rand_param1 = None, rand_param2 = None, **kwargs):
+        '''Writes a file with the initial states of the hills, this file could be 
+        .uini or .ini.
+
+        ini: Different initial values for each hill: 
+
+        {model type}
+        {number of links}
+        {initial time}
+        {link id 1}
+        {initial value 1} {initial value 2}
+        {link id 2}
+        {initial value 1} {initial value 2}
+
+        uini: Same initial values for all hills:
+
+        {model type}
+        {initial time}
+        {initial value 1} {initial value 2}
+
+        more info see:
+        https://asynch.readthedocs.io/en/latest/input_output.html#initial-values-input
+
+        Parameters:
+            - path: Path to save the .ini or .uini file.
+            - modelType: Configuration of the model (default 252 Toplayer model)
+            - HillsIDs: Number od the id for each hill apply only for variable hills (.ini)
+            - initial: Method to obtain initial values.
+                - urandom: Put a uniform random value at each link
+                    rand_param1: minimum value of the uniform distribution
+                    rand_param2: maximum value of the uniform distribution
+                - nrandom: Put a normal random value at each link
+                    rand_param1: mean value of the normal distribution
+                    rand_param2: deviation value of the normal distribution
+                - np.array: Put a variable based on an array containing stages.
+            - Ntages: Number of stages for the model.  For information about this see:
+                https://asynch.readthedocs.io/en/latest/builtin_models.html
+            - InitialTime: Place to put the forcing into the simulation.
+            - urand_min: List with the minimum initial values for random generation.
+            - urand_max: List with the maximum initial values for random generation.
+        '''
+
+        #Type of extension
+        if VariableHills:
+            extension = '.ini'
+        else:
+            extension = '.uini'
+        #Path Fix
+        name, ext = os.path.splitext(path) 
+        if ext != extension:
+            path = name + extension
+
+        #Void function just to compare if initial argument is a function
+        VoidF = lambda x: 1
+
+        if VariableHills:
+            #Write a .ini file with different initial states for each hill
+            f = open(path, 'w')
+            f.write('%d \n' % modelType)
+            f.write('%d \n' % self.hillsIds.size)
+            f.write('%.5f \n' % InitialTime)
+            #Iterate in al hills in order to write its initial values
+            for Hill in self.hillsIds:
+                #Selec initial state function 
+                if initial == 'urandom':
+                    #Estado inicial aleatorio uniforme 
+                    States = self.__InitialStatesUrandom__(rand_param1, rand_param2)
+                elif initial == 'nrandom':
+                    #Estado inicial aleatorio uniforme 
+                    States = self.__InitialStatesNrandom__(rand_param1, rand_param2)
+                elif type(initial) == type(VoidF):
+                    #Estado inicial dado por una funcion
+                    States = initial(rand_param1, rand_param2)
+                elif initial == np.ndarray:
+                    #Estado inicial dado por un array con los valores
+                    States = np.copy(initial[0])
+                #Writes states into the ini file    
+                self.__InitialStatesWrite__(f, Hill, States)
+            #Close file 
+            f.close()
+        else:
+            #Selec initial state function 
+            if initial == 'urandom':
+                #Estado inicial aleatorio uniforme 
+                States = self.__InitialStatesUrandom__(rand_param1, rand_param2)
+            elif initial == 'nrandom':
+                #Estado inicial aleatorio uniforme 
+                States = self.__InitialStatesNrandom__(rand_param1, rand_param2)
+            elif type(initial) == type(VoidF):
+                #Estado inicial dado por una funcion
+                States = initial(rand_param1, rand_param2)
+            elif initial == np.ndarray:
+                #Estado inicial dado por un array con los valores
+                States = np.copy(initial)
+            #Writes a .uini file with the same states for all the hills 
+            f = open(path, 'w')
+            f.write('%d \n' % modelType)
+            f.write('%.5f \n\n' % InitialTime)
+            for state in States:
+                f.write('%.5f ' % state)
+            f.write('\n')
+            f.close()
 
 
 
