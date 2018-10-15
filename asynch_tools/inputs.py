@@ -134,11 +134,13 @@ class basinTopo:
 
     def __RainWriteVariableHill__(self, f,rain, timeStep, Hill, maskHills):
         '''Updates variable hill rainfall file'''
-        f.write('%d\n' % Hill)
-        f.write('%d\n' % rain.size)
+        f.write('%d \n' % Hill)
+        f.write('%s\n' % str(rain.size+2))
+        f.write('0 0.00\n')
         for c,r in enumerate(rain):
             Step = (c+1)*timeStep
             f.write('%.3f %.3f \n' % (Step, r))
+        f.write('%d 0.0\n' % ( (c+2)*timeStep) )
         f.write('\n')
     
     def Rain2strFile(self, path, rain = 'urandom', Nrain = None, RainTimeStep = 5,
@@ -213,8 +215,14 @@ class basinTopo:
                         rainValues = self.__RainHistogramRainfall__(BaseHietogram, Ngen)
                         #Writes rainfall for hill
                         self.__RainWriteVariableHill__(f,rainValues, RainTimeStep, Hill, MaskedHills)
+                else:
+                    #Rain values equal to zero 
+                    if rain == 'urandom': rainValues = np.zeros(Nrain)
+                    if rain == 'hrandom': rainValues = np.zeros(BaseHietogram.size)
+                    self.__RainWriteVariableHill__(f,rainValues, RainTimeStep, Hill, MaskedHills)
             #Close rainfall file 
             f.close()
+            return rainValues
         elif VariableHills is False:
             #Selects rainfall depending on the generator function
             if rain == 'urandom':
@@ -233,7 +241,8 @@ class basinTopo:
                 f.write('%.3f %.3f \n' % (Step, R))
             #Close rainfall file 
             f.close()
-
+            return rainValues
+        
     ########################################################################################################
     #Functions to obtain random initial conditions 
             
