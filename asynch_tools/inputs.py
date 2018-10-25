@@ -26,7 +26,11 @@ class GlobalGenerator:
     def __UpdateGlobalVariables__(self, key):
         '''Function to update the global variables in the file'''
         #Variables with similar behavior 
-        ListSimilar = ['Topology', 'Parameters','Initial','Rainfall','Links2Save']
+        ListSimilar = ['Topology', 
+            'Parameters','Initial','Rainfall','Links2Save',
+            'TemporalFolder',
+            'Snapshots',
+            'Peakflow']
         #Temporal dictionary and position in the global file 
         Dtemp = self.GlobalVariables[key]
         p = self.editGlobal.index(Dtemp['Phrase'])
@@ -55,7 +59,10 @@ class GlobalGenerator:
                 if self.GlobalVariables[key]['param'] is not None:
                     Dtemp = self.GlobalVariables[key]
                     pos = Dtemp['Pos']
-                    self.editGlobal[p+pos] = self.editGlobal[p+pos][0] + ' ' + Dtemp['param']+'\n'
+                    if len(self.editGlobal[p+pos])>3:
+                        self.editGlobal[p+pos] = self.editGlobal[p+pos][0] + ' ' + Dtemp['param']+'\n'
+                    else:
+                        self.editGlobal[p+pos] = Dtemp['param']+'\n'
             except:
                 pass
     
@@ -82,6 +89,15 @@ class GlobalGenerator:
             'Links2Save': {'param': None,
                 'Phrase': '%.sav files for hydrographs and peak file\n',
                 'Pos': 2},
+            'TemporalFolder': {'param': None,
+                'Phrase': '%Filename for scratch work\n',
+                'Pos': 1},
+            'Peakflow': {'param': None,
+                'Phrase': '%Where to put peakflow data\n',
+                'Pos': 2},
+            'Snapshots': {'param': None,
+                'Phrase': '%Snapshot information (0 = none, 1 = to file, 2 = to database)\n',
+                'Pos': 1},
             'Out_hydro': {'param': None,
                 'Phrase': '%Where to put write hydrographs\n',
                 'Pos': 2,
