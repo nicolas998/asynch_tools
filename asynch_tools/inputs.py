@@ -19,7 +19,98 @@ import numpy as np
 import os
 import pandas as pd
 
+#GlobalGenerator: class used to generate global files for asynch, with this 
+#you can specify output files, time deltas, running time, etc.
+class GlobalGenerator:
+    
+    def __UpdateGlobalVariables__(self, key):
+        '''Function to update the global variables in the file'''
+        #Variables with similar behavior 
+        ListSimilar = ['Topology', 'Parameters','Initial','Rainfall','Links2Save']
+        #Temporal dictionary and position in the global file 
+        Dtemp = self.GlobalVariables[key]
+        p = self.editGlobal.index(Dtemp['Phrase'])
+        #Finds position in the global file 
+        if key == 'Time':
+            for i,param in zip(Dtemp['Pos'], Dtemp['param']):
+                self.editGlobal[p+i] = '%.1f\n' % param
+        elif key == 'Globals':
+            Dtemp = self.GlobalVariables[key]
+            Texto = '%d' % len(Dtemp['param'])
+            pos = Dtemp['Pos']
+            for i in Dtemp['param']:
+                if np.abs(i)>0.01 or i == 0.0:
+                    Texto += ' %.4f' % i
+                else:
+                    Texto += ' %.3E' % i
+            self.editGlobal[p+pos] = Texto + '\n'
+        elif key == 'Out_hydro' and self.GlobalVariables[key]['param'] is not None:
+            Dtemp = self.GlobalVariables[key]
+            pos = Dtemp['Pos']
+            Texto = str(Dtemp['TimeDelta']) + ' ' + Dtemp['param'] + '\n'
+            self.editGlobal[p+pos] = self.editGlobal[p+pos][0] + ' ' + Texto
+        else:
+            try:
+                KeyInPos = ListSimilar.index(key)
+                if self.GlobalVariables[key]['param'] is not None:
+                    Dtemp = self.GlobalVariables[key]
+                    pos = Dtemp['Pos']
+                    self.editGlobal[p+pos] = self.editGlobal[p+pos][0] + ' ' + Dtemp['param']+'\n'
+            except:
+                pass
+    
+    def __init__(self, baseGlobalPath = None):
+        '''Global generator for asynch runs.'''
+        self.GlobalVariables = {'Time':{'param': [0, 20*24*3600],
+                'Phrase': '%Begin and end date time\n',
+                'Pos': [1, 2]},
+            'Globals':{'param': [0.33, 0.20, -0.1, 0.0, 2.0425e-6, 0.02, 0.5, 0.10, 0.0, 99.0, 3.0, 0.75],
+                'Phrase': '%Global parameters\n',
+                'Pos': 2},
+            'Topology':{'param': None,
+                'Phrase': '%Topology (0 = .rvr, 1 = database)\n',
+                'Pos': 1},
+            'Parameters': {'param': None,
+                'Phrase': '%DEM Parameters (0 = .prm, 1 = database)\n',
+                'Pos': 1},
+            'Initial': {'param': None,
+                'Phrase': '%Initial state (0 = .ini, 1 = .uini, 2 = .rec, 3 = .dbc)\n',
+                'Pos': 1},
+            'Rainfall': {'param': None,
+                'Phrase': '%Rain\n',
+                'Pos': 1},
+            'Links2Save': {'param': None,
+                'Phrase': '%.sav files for hydrographs and peak file\n',
+                'Pos': 2},
+            'Out_hydro': {'param': None,
+                'Phrase': '%Where to put write hydrographs\n',
+                'Pos': 2,
+                'TimeDelta': 10},
+                }
+        if baseGlobalPath is not None:
+            #Opens the base global and puts it as a back variable
+            f = open(baseGlobalPath, 'r')
+            self.baseGlobal = f.readlines()
+            f.close()
+            #Make the editable global
+            self.editGlobal = self.baseGlobal.copy() 
 
+    def ChangeVariable(self, VarName, VarValue):
+        '''Function to change the value of a variable for the global file to write'''
+        self.GlobalVariables[VarName]['param'] = VarValue
+        self.__UpdateGlobalVariables__(VarName)
+        
+    def WriteGlobalFile(self, GlobalPathName, Return2BaseGlobal = False):
+        '''Function to write a global file with the changes done'''
+        #Writes new global file into disk
+        f = open(GlobalPathName, 'w')
+        f.writelines(self.editGlobal)
+        f.close()
+        #If yes, return the editGlobal to baseGlobal
+        if Return2BaseGlobal:
+            self.editGlobal = self.baseGlobal.copy()
+    
+    
 #Basin topo class used to generate input rainfall and initial conditions for
 #asynch
 class basinTopo:
