@@ -19,6 +19,43 @@ import numpy as np
 import os
 import pandas as pd
 
+
+#Runfile generator: generates runfiles
+class RunFile:
+
+    def __init__(self, path):
+        '''Obtaines the initial structure of the runfile from a base runfile'''
+        #Lecturea
+        f = open(path,'r')
+        self.RunFileSet = f.readlines()
+        f.close()
+        #Finds the line to put the mpirun command
+        self.mpirunline = -999
+        for c,i in enumerate(self.RunFileSet):
+            for j in i.split():
+                if j == 'mpirun':
+                    self.mpirunline = c
+                    self.RunLine = self.RunFileSet[self.mpirunline]
+        #prints if there is no mpirun line 
+        if self.mpirunline == -999:
+            print('Error: No mpirun line found in the RunFile')
+        
+    def WriteRunFile(self, newLine, pathOut):
+        '''Writes a new runfile with the passed line'''
+        #Generates new line and write it        
+        NewLine = self.RunLine.split()[:-1]
+        NewLine.append(newLine)
+        RunName = ''
+        for i in NewLine:
+            RunName += i + ' '
+        self.RunFileSet[self.mpirunline] = RunName
+        #Writes down the new file
+        f = open(pathOut, 'w')
+        f.writelines(self.RunFileSet)
+        f.close()
+    
+
+
 #GlobalGenerator: class used to generate global files for asynch, with this 
 #you can specify output files, time deltas, running time, etc.
 class GlobalGenerator:
@@ -48,11 +85,12 @@ class GlobalGenerator:
                 else:
                     Texto += ' %.3E' % i
             self.editGlobal[p+pos] = Texto + '\n'
-        elif key == 'Out_hydro' and self.GlobalVariables[key]['param'] is not None:
-            Dtemp = self.GlobalVariables[key]
-            pos = Dtemp['Pos']
-            Texto = str(Dtemp['TimeDelta']) + ' ' + Dtemp['param'] + '\n'
-            self.editGlobal[p+pos] = self.editGlobal[p+pos][0] + ' ' + Texto
+        elif key == 'Out_hydro' or key == 'Snapshots':
+            if self.GlobalVariables[key]['param'] is not None:
+                Dtemp = self.GlobalVariables[key]
+                pos = Dtemp['Pos']
+                Texto = str(Dtemp['TimeDelta']) + ' ' + Dtemp['param'] + '\n'
+                self.editGlobal[p+pos] = self.editGlobal[p+pos][0] + ' ' + Texto
         else:
             try:
                 KeyInPos = ListSimilar.index(key)
@@ -97,7 +135,8 @@ class GlobalGenerator:
                 'Pos': 2},
             'Snapshots': {'param': None,
                 'Phrase': '%Snapshot information (0 = none, 1 = to file, 2 = to database)\n',
-                'Pos': 1},
+                'Pos': 1,
+                'TimeDelta': 60},
             'Out_hydro': {'param': None,
                 'Phrase': '%Where to put write hydrographs\n',
                 'Pos': 2,
